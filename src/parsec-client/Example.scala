@@ -1,7 +1,7 @@
 package parsecClient
 
 import java.io._
-import java.lang.reflect._
+import java.lang.reflect
 
 object Client {
 
@@ -35,16 +35,19 @@ object Client {
     }
 
     // Get file handle of original file or directory
-    val dir = "resources/"
-    val build = "build/"
+    val dir = "resources"
+    val build = "build"
     val orig = new File(dir)
     var error : Option[String] = None
+    var files : List[File] = Nil
+    var fnames : List[String] = Nil
+    var fpaths : List[String] = Nil
 
     // In case it's a directory, let the file array contain all the files of the directory
     if (orig.isDirectory) {
       files     = orig.listFiles.filter(f => """.*\.scala$""".r.findFirstIn(f.getName).isDefined).toList
       fnames    = files.map(f => f.getName)
-      fpaths    = fnames.map(f => dir ++ f)
+      fpaths    = fnames.map(f => dir + "/" + f)
     }
 
     // Then compile the files
@@ -63,9 +66,12 @@ object Client {
     println(System.getProperty("java.class.path"))
 
     // Compile files
-    files = compile
+    // val files = compile // Echoed out to save a bit of time
 
     // Now find the class containing the main function
+    val c = findClass
+
+    println("Class name: " + c.getName)
 
     // Make a method that uses
     // Java lang reflect
@@ -84,23 +90,23 @@ object Client {
   // Def runTest(contr : Controller) {
     // registerController(contr)
 
-  def findClass : Class = {
-    def findClass0(dir : File) : List[Class] = {
+  def findClass : Class[_] = {
+    def findClass0(dir : File) : List[Class[_]] = {
       if (dir.isDirectory) {
         val classPointers = dir.listFiles.filter(f => """.*\.class$""".r.findFirstIn(f.getName).isDefined).toList
         val directories = dir.listFiles.filter(f => f.isDirectory).toList
-        val classStrings = classPointers.map(c => dir.getName + "." + c.getName.split(".").head)
+        val classStrings = classPointers.map(c => c.getPath.split('.').head.split('/').drop(1).mkString("."))
         val classes = classStrings.map(c => Class.forName(c)).filter(hasMain)
         return classes ++ directories.flatMap(findClass0)
       }
       else throw new Exception(dir + " is not a directory")
     }
 
-    def hasMain(c : Class) : Boolean = c.getDeclaredMethods.filter(m => m.getName == "runDebug")
+    def hasMain(c : Class[_]) : Boolean = c.getName.last != '$' && c.getDeclaredMethods.filter(m => m.getName == "main").length == 1
 
-    val cs = findClass0("build")
-    if (cs.length > 1) throw new Exception("More than one main class in uploaded files")
-    if (cs.length == 0) throw new Exception("No main class in uploaded files")
+    val cs = findClass0(new File("build"))
+    if (cs.length > 1) throw new Exception("More than one runDebug class in uploaded files")
+    if (cs.length == 0) throw new Exception("No runDebug class in uploaded files")
 
     // Get first and only element
     return cs.head
