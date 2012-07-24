@@ -5,7 +5,7 @@ import java.lang.reflect
 import scala.util.parsing.combinator.debugging.AndOrZipper
 import scala.util.parsing.combinator.debugging.Controllers
 
-class ParsecClient extends Controllers {
+class Client extends Controllers {
 
   import scala.tools.nsc
   import scala.tools.nsc.reporters.ConsoleReporter
