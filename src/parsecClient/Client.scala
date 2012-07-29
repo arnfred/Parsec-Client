@@ -4,6 +4,7 @@ import java.io._
 import java.lang.Thread
 import java.lang.reflect
 import java.lang.reflect.InvocationTargetException
+import java.awt.GraphicsConfiguration
 import swing._
 import scala.util.parsing.combinator.debugging.AndOrZipper
 import scala.util.parsing.combinator.debugging.Controllers
@@ -29,7 +30,7 @@ class Client extends Controllers {
   val req = new Request
   var z : AndOrZipper = null
   val methHandler = null
-  val op : Thread = null 
+  var op : Thread = null 
   def compile : List[String] = {
 
     def createCompiler(out: String): (nsc.Global, nsc.Settings) = {
