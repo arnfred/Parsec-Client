@@ -24,8 +24,9 @@ scalaHome <<= baseDirectory { f =>
 
 unmanagedJars in Compile <++= (scalaHome, baseDirectory) map { (sHome, base) =>
   val scalaCompiler = (sHome.get / "lib" / "scala-compiler.jar")
+  val swing = (sHome.get / "lib" / "scala-swing.jar")
   val unmanagedDirs = base +++ (base / "lib")
-  val allJars = (unmanagedDirs ** ".jars") +++ scalaCompiler
+  val allJars = (unmanagedDirs ** ".jars") +++ scalaCompiler +++ swing
   allJars.classpath
 }
 

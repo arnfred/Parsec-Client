@@ -4,24 +4,32 @@ import java.io._
 import java.lang.Thread
 import java.lang.reflect
 import java.lang.reflect.InvocationTargetException
+import swing._
 import scala.util.parsing.combinator.debugging.AndOrZipper
 import scala.util.parsing.combinator.debugging.Controllers
 import scala.tools.nsc
 import scala.tools.nsc.reporters.ConsoleReporter
 import scala.tools.nsc.io.{PlainDirectory, Directory, PlainFile}
 
-object Client {
-  def main(args : Array[String]) : Unit = {
-    val c = new Client
-    c.run
+object Client extends SimpleSwingApplication {
+  val c = new Client
+  val compile = Button("Compile") { c.init }
+  val step = Button("Step") { c.step }
+
+  def top = new MainFrame {
+    title = "Parsec Debugger"
+    contents = new FlowPanel(compile, step)
   }
 }
 
 class Client extends Controllers {
 
 
+  val controller = new Controller // this will serve as our way of communicating with the running debugger session
+  val req = new Request
   var z : AndOrZipper = null
-
+  val methHandler = null
+  val op : Thread = null 
   def compile : List[String] = {
 
     def createCompiler(out: String): (nsc.Global, nsc.Settings) = {
@@ -68,18 +76,16 @@ class Client extends Controllers {
     return fnames
   }
 
-  def run : Unit = {
+  def init : Unit = {
     println("hello world")
     val props = new java.util.Properties()
     props.load(new java.io.FileInputStream("local.properties"))
     val x = props.getProperty("scala.home")
     //IO.load(props, f / "local.properties")
     //val x = props.getProperty("scala.home")
-    println(x + "/lib/scala-library.jar")
-    println(System.getProperty("java.class.path"))
 
     // Compile files
-    // val files = compile // Echoed out to save a bit of time
+    val files = compile // Echoed out to save a bit of time
 
     println("Compile was successful")
 
@@ -89,41 +95,48 @@ class Client extends Controllers {
     println("Class name: " + classToRun.getName)
 
     // Create a controller
-    val controller = new Controller // this will serve as our way of communicating with the running debugger session
-    val req = new Request
     controller.request = req
 
     // Invoke the class we found, calling run with a newly created controller
-    println(classToRun.getDeclaredMethods.map(m => m.getName).mkString("\n"))
     val methHandler = classToRun.getMethod("runMain", classOf[Controller]) // runTest would be defined in Parsers and would add Controller argument to the list of listeners
-    val f = classToRun.getField("MODULE$")
+    val f           = classToRun.getField("MODULE$")
     f.setAccessible(true)
-    val c = f.get(null)
-
-    // create thread
-    val op = new Thread() {
-
+    val c           = f.get(null)
+    op              = new Thread() {
       override def run() {
         methHandler.invoke(c, controller)
       } 
     }
-    op.start()
- //   controller.synchronized {
- //     methHandler.invoke(c, controller) // run in another thread
-//      println("0")
 
-      // Now we go into a gui test loop
-      testLoop(op, controller)
- //   }
+    op.start()
+    //testLoop(op, controller)
 
   }
+
+  def step : Unit = {
+    controller.synchronized {
+      controller.notify
+    }
+    if (op.getState != java.lang.Thread.State.TERMINATED) {
+      controller.request.synchronized {
+        while (controller.request.field == null) controller.request.wait
+        // Now that we are back, get the zipper and reset the controller
+        z = controller.request.field
+        controller.request.field = null
+      }
+
+
+      // print out the zipper
+      println(z.toString)
+    }
+  }
+
 
   def testLoop(op : Thread, c : Controller) : Unit = {
     println("testLoop: enter")
     c.synchronized {
       c.notify
     }
-    println("2.5")
     if (op.getState != java.lang.Thread.State.TERMINATED) {
       c.request.synchronized {
         while (c.request.field == null) c.request.wait
