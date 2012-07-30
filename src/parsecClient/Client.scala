@@ -17,7 +17,7 @@ object Client extends SimpleSwingApplication {
   val compile = Button("Compile") { c.init }
   val step = Button("Step") { c.step }
 
-  def top = new MainFrame {
+  def top = new MainFrame(null) {
     title = "Parsec Debugger"
     contents = new FlowPanel(compile, step)
   }
