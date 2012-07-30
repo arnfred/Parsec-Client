@@ -15,20 +15,21 @@ import scala.tools.nsc.io.{PlainDirectory, Directory, PlainFile}
 object Client extends SimpleSwingApplication {
   val c = new Client
   val compile = Button("Compile") { c.init }
-  val step = Button("Step") { c.step }
+  val step = Button("Step") { val z = c.step; println(z.toString) }
+  val stepBack = Button("Step Back") { val z = c.stepBack; println(z.toString) }
 
   def top = new MainFrame(null) {
     title = "Parsec Debugger"
-    contents = new FlowPanel(compile, step)
+    contents = new FlowPanel(compile, step, stepBack)
   }
 }
 
 class Client extends Controllers {
 
-
   val controller = new Controller // this will serve as our way of communicating with the running debugger session
   val req = new Request
-  var z : AndOrZipper = null
+  var zs : List[AndOrZipper] = Nil
+  var index : Int = 0
   val methHandler = null
   var op : Thread = null 
   def compile : List[String] = {
@@ -43,11 +44,11 @@ class Client extends Controllers {
       val directory = new Directory(jFile)
       val compDirectory = new PlainDirectory(directory)
       settings.outputDirs.setSingleOutput(compDirectory)
-      
+
       val global = new nsc.Global(settings, new ConsoleReporter(settings))
       (global, settings)
     }
-   
+
     def doCompile(filesToCompile : List[String], dest : String) {
       println("WILL COMPILE: " + filesToCompile.mkString(", "))
       val (comp, settings) = createCompiler(dest)
@@ -78,7 +79,6 @@ class Client extends Controllers {
   }
 
   def init : Unit = {
-    println("hello world")
     val props = new java.util.Properties()
     props.load(new java.io.FileInputStream("local.properties"))
     val x = props.getProperty("scala.home")
@@ -114,7 +114,34 @@ class Client extends Controllers {
 
   }
 
-  def step : Unit = {
+  def step : AndOrZipper = {
+
+    if (index == 0) {
+      // If the index is 0, then we need to get the next element
+      next
+    } 
+    else {
+      index = index - 1
+    }
+    zs.drop(index).head
+  }
+
+  def stepBack : AndOrZipper = {
+
+    if ((index + 1) == zs.length) {
+      // If the index is equal to the length of the list, then we can't go any futher back
+      // Should call to textfield and change it to "Already at first item"
+    }
+    else {
+      index = index + 1
+      // If index is bigger than length - 1, then we don't change the index
+      // Should call to textfield and change it to "Already at first item"
+    }
+    zs.drop(index).head
+  }
+
+
+  def next : Unit = {
     controller.synchronized {
       controller.notify
     }
@@ -122,13 +149,9 @@ class Client extends Controllers {
       controller.request.synchronized {
         while (controller.request.field == null) controller.request.wait
         // Now that we are back, get the zipper and reset the controller
-        z = controller.request.field
+        zs = controller.request.field :: zs
         controller.request.field = null
       }
-
-
-      // print out the zipper
-      println(z.toString)
     }
   }
 
@@ -142,13 +165,13 @@ class Client extends Controllers {
       c.request.synchronized {
         while (c.request.field == null) c.request.wait
         // Now that we are back, get the zipper and reset the controller
-        z = c.request.field
+        zs = c.request.field :: zs
         c.request.field = null
       }
 
 
       // print out the zipper
-      println(z.toString)
+      println(zs.head.toString)
 
       // Check if we should loop around
       println("\n>> ")
@@ -167,9 +190,7 @@ class Client extends Controllers {
         val classPointers = dir.listFiles.filter(f => """.*\.class$""".r.findFirstIn(f.getName).isDefined).toList
         val directories = dir.listFiles.filter(f => f.isDirectory).toList
         val classStrings = classPointers.map(c => c.getPath.split('.').head.split('/').drop(1).mkString("."))
-        println(classStrings)
-        //val classes = (for (c <- classStrings if c.last == '$') yield Class.forName(c)).filter(hasRun(_))
-        val classes = (for (c <- classStrings) yield Class.forName(c)).filter(hasRun(_))
+        val classes = (for (c <- classStrings if c.last == '$') yield Class.forName(c)).filter(hasRun(_))
         return classes ++ directories.flatMap(findClass0)
       }
       else throw new Exception(dir + " is not a directory")
