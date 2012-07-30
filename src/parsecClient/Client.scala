@@ -14,13 +14,31 @@ import scala.tools.nsc.io.{PlainDirectory, Directory, PlainFile}
 
 object Client extends SimpleSwingApplication {
   val c = new Client
-  val compile = Button("Compile") { c.init }
-  val step = Button("Step") { val z = c.step; println(z.toString) }
-  val stepBack = Button("Step Back") { val z = c.stepBack; println(z.toString) }
+  val compile = Button("Compile") { c.init; }
+  val step = Button("Step") { val z = c.step; set(z) }
+  val stepBack = Button("Step Back") { val z = c.stepBack; set(z) }
 
-  def top = new MainFrame(null) {
-    title = "Parsec Debugger"
-    contents = new FlowPanel(compile, step, stepBack)
+  val buttons = new FlowPanel(compile, step, stepBack)
+  val text = new ListView(List("Nothing to display yet"))
+  val topBox = new BoxPanel(Orientation.Vertical) {
+    contents += buttons
+    contents += text
+  }
+
+  def set(z : AndOrZipper) {
+    text.listData = z.toString.split('\n')
+    text.repaint
+  }
+
+  def top = {
+    // Disable step and step-back
+    step.enabled_=(false)
+    stepBack.enabled_=(false)
+    new MainFrame(null) {
+      title = "Parsec Debugger"
+      //contents = new FlowPanel(compile, step, stepBack)
+      contents = topBox
+    }
   }
 }
 
@@ -29,6 +47,7 @@ class Client extends Controllers {
   val controller = new Controller // this will serve as our way of communicating with the running debugger session
   val req = new Request
   var zs : List[AndOrZipper] = Nil
+  var isDone : Boolean = false
   var index : Int = 0
   val methHandler = null
   var op : Thread = null 
@@ -105,9 +124,16 @@ class Client extends Controllers {
     val c           = f.get(null)
     op              = new Thread() {
       override def run() {
-        methHandler.invoke(c, controller)
+        try {
+          methHandler.invoke(c, controller)
+        }
+        catch { case e => e.getCause().printStackTrace(); }
       } 
     }
+
+    // Enable clicking next
+    Client.step.enabled_=(true)
+    Client.compile.enabled_=(false)
 
     op.start()
     //testLoop(op, controller)
@@ -119,10 +145,17 @@ class Client extends Controllers {
     if (index == 0) {
       // If the index is 0, then we need to get the next element
       next
+
+      // if this was the last, then disable next
+      if (isDone) Client.step.enabled_=(false)
     } 
     else {
       index = index - 1
+
+      // If we are moving to the end and it's last, disable next
+      if (isDone && index == 0) Client.step.enabled_=(false)
     }
+    Client.stepBack.enabled_=(true)
     zs.drop(index).head
   }
 
@@ -136,7 +169,11 @@ class Client extends Controllers {
       index = index + 1
       // If index is bigger than length - 1, then we don't change the index
       // Should call to textfield and change it to "Already at first item"
+
+      // if we are now at the first then disable prev
+      if (index + 1 == zs.length) Client.stepBack.enabled_=(false)
     }
+    Client.step.enabled_=(true)
     zs.drop(index).head
   }
 
@@ -150,6 +187,7 @@ class Client extends Controllers {
         while (controller.request.field == null) controller.request.wait
         // Now that we are back, get the zipper and reset the controller
         zs = controller.request.field :: zs
+        isDone = controller.request.isDone
         controller.request.field = null
       }
     }
